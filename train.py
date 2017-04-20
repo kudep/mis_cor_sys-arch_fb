@@ -31,7 +31,7 @@ def main():
                         help='minibatch size')
     parser.add_argument('--seq_length', type=int, default=45,
                         help='RNN sequence length')
-    parser.add_argument('--num_epochs', type=int, default=53,
+    parser.add_argument('--num_epochs', type=int, default=6,
                         help='number of epochs')
     parser.add_argument('--save_every', type=int, default=1000,
                         help='save frequency')

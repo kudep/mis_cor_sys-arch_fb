@@ -53,11 +53,39 @@ class TextLoader():
         self.vocab = dict(zip(self.chars, range(len(self.chars))))
         with open(self.vocab_file, 'wb') as f:
             cPickle.dump(self.chars, f)
-        self.tensor = np.array(list(map(self.vocab.get, data)))
+        #self.tensor = np.array(list(map(self.vocab.get, data)))
+#
+        #self.wind_len=self.seq_length*2+1
+        #self.num_batches=(self.tensor.size)//(self.batch_size*self.wind_len)
+        #self.tensor=self.tensor[:self.num_batches*self.batch_size*self.wind_len]
+        #start
+        self.meta_tensor = np.array(list(map(self.vocab.get, data)))
 
         self.wind_len=self.seq_length*2+1
+        self.num_batches=(self.meta_tensor.size)//(self.batch_size*self.wind_len)
+
+        # When the data (tensor) is too small,
+        # let's give them a better error message
+        if self.num_batches == 0:
+            assert False, "Not enough data. Make seq_length and batch_size small."
+
+        print('Make data tensor')
+        self.tensor=self.meta_tensor[:(self.num_batches*self.batch_size-1)*self.wind_len]
+
+        num_parts=2
+        parts=np.arange(1,self.wind_len//2).reshape(num_parts,-1) #Half all data
+        for part_ind in range(num_parts):
+            print('Start existing {0} part of data tensor'.format(part_ind))
+            part_tensor=np.arange(0)
+            for ind in tqdm(parts[part_ind]):
+                part_tensor=np.concatenate([part_tensor,self.meta_tensor[ind:(self.num_batches*self.batch_size-1)*+ind]])
+            self.tensor=np.concatenate([self.tensor,part_tensor])
+
         self.num_batches=(self.tensor.size)//(self.batch_size*self.wind_len)
-        self.tensor=self.tensor[:self.num_batches*self.batch_size*self.wind_len]
+        self.tensor=self.tensor[:(self.num_batches*self.batch_size)*self.wind_len]
+
+
+        #end
 
         # When the data (tensor) is too small,
         # let's give them a better error message
@@ -132,10 +160,11 @@ class TextLoader():
     def form_dataset(self,):
         #Form dataset to left_data, rught_data and target is ydata
         merg_data=self.tensor.reshape([-1,self.wind_len])
-        num_parts=20
+        num_parts=self.batch_size
         parts=np.arange(len(merg_data)).reshape(num_parts,-1)
         rl_xdata=np.arange(0)
         for part_ind in range(num_parts):
+            print('Start existing {0} part of xdata'.format(part_ind))
             part_rl_xdata=np.arange(0)
             for i in tqdm(parts[part_ind]):
                 part_rl_xdata=np.concatenate([part_rl_xdata,merg_data[i][:-self.seq_length-1],merg_data[i][self.seq_length+1:]])
