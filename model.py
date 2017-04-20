@@ -46,12 +46,22 @@ class Model():
             tf.int32, [args.batch_size,1])
         self.initial_state = cell.zero_state(args.batch_size, tf.float32)
 
+        def init_weights(name,shape):
+            return tf.get_variable(name, shape, initializer=tf.random_normal_initializer(stddev=0.01))
 
+        def init_biases(name,shape):
+            return tf.get_variable(name, shape, initializer=tf.random_normal_initializer(stddev=0.01))
+        
+        hidden_layer1_size=512
+        hidden_layer2_size=256
 
         with tf.variable_scope('rnnlm'):
-            softmax_w = tf.get_variable("softmax_w",
-                                        [args.rnn_size*2, args.vocab_size])
-            softmax_b = tf.get_variable("softmax_b", [args.vocab_size])
+            w_h1 = init_weights("relu1_w", [args.rnn_size*2, hidden_layer1_size])
+            b_h1 = init_biases("relu1_b", [hidden_layer1_size])
+            w_h2 = init_weights("relu2_w", [hidden_layer1_size, hidden_layer2_size])
+            b_h2 = init_biases("relu2_b", [hidden_layer2_size])
+            softmax_w = init_weights("softmax_w", [hidden_layer2_size, args.vocab_size])
+            softmax_b = init_weights("softmax_b", [args.vocab_size])
 
 
         left_embedding = tf.get_variable("left_embedding", [args.vocab_size, args.rnn_size])
@@ -81,8 +91,10 @@ class Model():
 
 
         def loop(prev, _):
-            prev = tf.matmul(prev, softmax_w) + softmax_b
-            prev_symbol = tf.stop_gradient(tf.argmax(prev, 1))
+            p_h1 = tf.nn.relu(tf.matmul(prev, w_h1)+b_h1)
+            p_h2 = tf.nn.relu(tf.matmul(h1, w_h2)+b_h2)
+            prev = tf.matmul(p_h1, softmax_w)+softmax_b
+            prev_symbol = tf.stop_gradient(tf.argmax(p_h2, 1))
             return tf.nn.embedding_lookup(embedding, prev_symbol)
 
         outputs, last_state = legacy_seq2seq.rnn_decoder(inputs, self.initial_state, cell, loop_function=loop if not training else None, scope='rnnlm')
@@ -90,8 +102,15 @@ class Model():
         output = tf.slice(output,[0, args.seq_length-1,0], [args.batch_size,1,args.rnn_size*2])
         output = tf.reshape(output, [-1, args.rnn_size*2])
 
+        h1 = tf.nn.relu(tf.matmul(output, w_h1)+b_h1)
+        h1 = tf.nn.dropout(h1, args.output_keep_prob)
 
-        self.logits = tf.matmul(output, softmax_w) + softmax_b
+        h2 = tf.nn.relu(tf.matmul(h1, w_h2)+b_h2)
+        h2 = tf.nn.dropout(h2, args.output_keep_prob)
+        
+        self.logits = tf.matmul(h2, softmax_w)+softmax_b
+
+        #self.logits = tf.matmul(output, softmax_w) + softmax_b
         self.probs = tf.nn.softmax(self.logits)
         loss = legacy_seq2seq.sequence_loss_by_example(
                 [self.logits],

@@ -179,7 +179,7 @@ class TextLoader():
 
         ydata = self.tensor[self.seq_length::self.wind_len]
 
-        #self.test(merg_data,left_xdata,right_xdata,ydata)
+        #self.test(left_xdata,right_xdata,ydata)
 
         #Save dataset
         np.save(self.left_xdata_file, left_xdata)
@@ -188,15 +188,16 @@ class TextLoader():
 
 
 
-    def test(self,merg_data,left_xdata,right_xdata,ydata):
-        for i in range(10):
+    def test(self,left_xdata,right_xdata,ydata):
+        base_div=0
+        num_parts=10
+        for i in range(base_div,num_parts):
+            shift=ydata.size//num_parts*i
             devocab = dict(zip(range(len(self.chars)), self.chars))
-            print("")
-            print("")
-            print(list(map(devocab.get, merg_data[i])))
-            print(list(map(devocab.get,left_xdata.reshape([-1,self.seq_length])[i])))
-            print(list(map(devocab.get,right_xdata.reshape([-1,self.seq_length])[i])))
-            print(devocab.get(ydata[i]))
+            print('\n Shift of dataset = {0}\n'.format(shift))
+            print(list(map(devocab.get,left_xdata.reshape([-1,self.seq_length])[shift])))
+            print(list(map(devocab.get,right_xdata.reshape([-1,self.seq_length])[shift])))
+            print(devocab.get(ydata[shift]))
 
 
 
@@ -213,6 +214,10 @@ class TextLoader():
         left_xdata=np.load(self.left_xdata_file)
         right_xdata = np.load(self.right_xdata_file)
         ydata = np.load(self.ydata_file)
+
+        #Check dataset
+        self.test(left_xdata,right_xdata,ydata)
+        raise
 
         self.num_batches=len(ydata)//self.batch_size
         # When the data (tensor) is too small,
