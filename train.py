@@ -9,6 +9,8 @@ from six.moves import cPickle
 from utils import TextLoader
 from model import Model
 
+import time
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -25,7 +27,7 @@ def main():
                         help='number of layers in the RNN')
     parser.add_argument('--model', type=str, default='lstm',
                         help='rnn, gru, lstm, or nas')
-    parser.add_argument('--batch_size', type=int, default=777,
+    parser.add_argument('--batch_size', type=int, default=400,
                         help='minibatch size')
     parser.add_argument('--seq_length', type=int, default=45,
                         help='RNN sequence length')
@@ -91,6 +93,8 @@ def train(args):
 
     model = Model(args)
 
+    start_time=time.time()
+
     with tf.Session() as sess:
         # instrument for tensorboard
         summaries = tf.summary.merge_all()
@@ -134,6 +138,8 @@ def train(args):
                     saver.save(sess, checkpoint_path,
                                global_step=e * data_loader.num_batches + b)
                     print("model saved to {}".format(checkpoint_path))
+
+    print('train time used = {0:.3f}'.format(time.time()-start_time))
 
 
 if __name__ == '__main__':
