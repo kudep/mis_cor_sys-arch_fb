@@ -52,15 +52,15 @@ class Model():
         def init_biases(name,shape):
             return tf.get_variable(name, shape, initializer=tf.random_normal_initializer(stddev=0.01))
         
-        hidden_layer1_size=512
-        hidden_layer2_size=256
+        hidden_layer1_size=args.vocab_size*2
+        hidden_layer2_size=args.rnn_size*2
 
         with tf.variable_scope('rnnlm'):
-            w_h1 = init_weights("relu1_w", [args.rnn_size*2, hidden_layer1_size])
-            b_h1 = init_biases("relu1_b", [hidden_layer1_size])
-            w_h2 = init_weights("relu2_w", [hidden_layer1_size, hidden_layer2_size])
-            b_h2 = init_biases("relu2_b", [hidden_layer2_size])
-            softmax_w = init_weights("softmax_w", [hidden_layer2_size, args.vocab_size])
+            w_h1 = init_weights("vanilla1_w", [args.rnn_size*2, hidden_layer1_size])
+            b_h1 = init_biases("vanilla1_b", [hidden_layer1_size])
+            w_h2 = init_weights("vanilla2_w", [args.rnn_size*2, hidden_layer2_size])
+            b_h2 = init_biases("vanilla2_b", [hidden_layer2_size])
+            softmax_w = init_weights("softmax_w", [args.rnn_size*2, args.vocab_size])
             softmax_b = init_weights("softmax_b", [args.vocab_size])
 
 
@@ -91,10 +91,10 @@ class Model():
 
 
         def loop(prev, _):
-            p_h1 = tf.nn.relu(tf.matmul(prev, w_h1)+b_h1)
-            p_h2 = tf.nn.relu(tf.matmul(h1, w_h2)+b_h2)
-            prev = tf.matmul(p_h1, softmax_w)+softmax_b
-            prev_symbol = tf.stop_gradient(tf.argmax(p_h2, 1))
+            #p_h1 = tf.nn.relu(tf.matmul(prev, w_h1)+b_h1)
+            #p_h2 = tf.nn.relu(tf.matmul(h1, w_h2)+b_h2)
+            prev = tf.matmul(prev, softmax_w)+softmax_b
+            prev_symbol = tf.stop_gradient(tf.argmax(prev, 1))
             return tf.nn.embedding_lookup(embedding, prev_symbol)
 
         outputs, last_state = legacy_seq2seq.rnn_decoder(inputs, self.initial_state, cell, loop_function=loop if not training else None, scope='rnnlm')
@@ -105,10 +105,10 @@ class Model():
         h1 = tf.nn.relu(tf.matmul(output, w_h1)+b_h1)
         h1 = tf.nn.dropout(h1, args.output_keep_prob)
 
-        h2 = tf.nn.relu(tf.matmul(h1, w_h2)+b_h2)
+        h2 = tf.nn.relu(tf.matmul(output, w_h2)+b_h2)
         h2 = tf.nn.dropout(h2, args.output_keep_prob)
         
-        self.logits = tf.matmul(h2, softmax_w)+softmax_b
+        self.logits = tf.matmul(output, softmax_w)+softmax_b
 
         #self.logits = tf.matmul(output, softmax_w) + softmax_b
         self.probs = tf.nn.softmax(self.logits)
@@ -133,12 +133,14 @@ class Model():
         tf.summary.histogram('loss', loss)
         tf.summary.scalar('train_loss', self.cost)
 
-    def sample(self, sess, chars, vocab, num=200, prime='The ', sampling_type=1):
+    def sample(self, sess, chars, vocab, left_xdata='The ', right_xdata='The ', num=200, sampling_type=1):
         state = sess.run(self.cell.zero_state(1, tf.float32))
-        for char in prime[:-1]:
-            x = np.zeros((1, 1))
-            x[0, 0] = vocab[char]
-            feed = {self.input_data: x, self.initial_state: state}
+        for l, r in zip(left_xdata[0],right_xdata[0]):
+            l_x = np.zeros((1, 1))
+            l_x[0, 0] = l
+            r_x = np.zeros((1, 1))
+            r_x[0, 0] = r
+            feed = {self.input_left_data: l_x,self.input_right_data: r_x, self.initial_state: state}
             [state] = sess.run([self.final_state], feed)
 
         def weighted_pick(weights):
@@ -146,26 +148,36 @@ class Model():
             s = np.sum(weights)
             return(int(np.searchsorted(t, np.random.rand(1)*s)))
 
-        ret = prime
-        char = prime[-1]
-        for n in range(num):
-            x = np.zeros((1, 1))
-            x[0, 0] = vocab[char]
-            feed = {self.input_data: x, self.initial_state: state}
+        ret = str(" ")
+        for l_x_row, r_x_row in zip(left_xdata,right_xdata):
+            #x = np.zeros((1, 1))
+            #x[0, 0] = vocab[char]
+            feed = {self.input_left_data: l_x,self.input_right_data: r_x, self.initial_state: state}
             [probs, state] = sess.run([self.probs, self.final_state], feed)
-            p = probs[0]
+            p = dict()
+
+            for l, r in zip(l_x_row,r_x_row):
+                l_x = np.zeros((1, 1))
+                l_x[0, 0] = l
+                r_x = np.zeros((1, 1))
+                r_x[0, 0] = r
+                feed = {self.input_left_data: l_x,self.input_right_data: r_x, self.initial_state: state}
+                [probs, state] = sess.run([self.probs, self.final_state], feed)
+                p['last'] = probs[0]
 
             if sampling_type == 0:
-                sample = np.argmax(p)
+                sample = np.argmax(p['last'])
             elif sampling_type == 2:
                 if char == ' ':
-                    sample = weighted_pick(p)
+                    sample = weighted_pick(p['last'])
                 else:
-                    sample = np.argmax(p)
+                    sample = np.argmax(p['last'])
             else:  # sampling_type == 1 default:
-                sample = weighted_pick(p)
+                sample = weighted_pick(p['last'])
 
             pred = chars[sample]
             ret += pred
-            char = pred
         return ret
+##Host kudep@40.71.94.164
+##  Hostname 40.71.94.164
+##  RemoteForward 52698 127.0.0.1:52698

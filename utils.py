@@ -53,11 +53,7 @@ class TextLoader():
         self.vocab = dict(zip(self.chars, range(len(self.chars))))
         with open(self.vocab_file, 'wb') as f:
             cPickle.dump(self.chars, f)
-        #self.tensor = np.array(list(map(self.vocab.get, data)))
-#
-        #self.wind_len=self.seq_length*2+1
-        #self.num_batches=(self.tensor.size)//(self.batch_size*self.wind_len)
-        #self.tensor=self.tensor[:self.num_batches*self.batch_size*self.wind_len]
+        
         #start
         self.meta_tensor = np.array(list(map(self.vocab.get, data)))
 
@@ -215,9 +211,9 @@ class TextLoader():
         right_xdata = np.load(self.right_xdata_file)
         ydata = np.load(self.ydata_file)
 
-        #Check dataset
-        self.test(left_xdata,right_xdata,ydata)
-        raise
+        ##Check dataset
+        #self.test(left_xdata,right_xdata,ydata)
+        #raise
 
         self.num_batches=len(ydata)//self.batch_size
         # When the data (tensor) is too small,
